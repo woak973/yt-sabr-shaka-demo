@@ -1,5 +1,6 @@
 import { fetchFunction } from '../utils/helpers';
-import { BG, buildURL, DescrambledChallenge, GOOG_API_KEY, WebPoSignalOutput } from 'bgutils-js';
+import type { DescrambledChallenge, WebPoSignalOutput } from 'bgutils-js';
+import { BG, buildURL, GOOG_API_KEY } from 'bgutils-js';
 
 export class BotguardService {
   private readonly waaRequestKey = 'O43z0dpjhgX20SCx4KAo';
@@ -37,14 +38,13 @@ export class BotguardService {
       headers: {
         'content-type': 'application/json+protobuf',
         'x-goog-api-key': GOOG_API_KEY,
-        'x-user-agent': 'grpc-web-javascript/0.1',
+        'x-user-agent': 'grpc-web-javascript/0.1'
       },
-      body: JSON.stringify([ this.waaRequestKey ]),
+      body: JSON.stringify([ this.waaRequestKey ])
     });
 
     const challengeResponseData = await challengeResponse.json();
     this.bgChallenge = BG.Challenge.parseChallengeData(challengeResponseData);
-
 
     if (!this.bgChallenge)
       return;
@@ -79,9 +79,9 @@ export class BotguardService {
         headers: {
           'content-type': 'application/json+protobuf',
           'x-goog-api-key': GOOG_API_KEY,
-          'x-user-agent': 'grpc-web-javacript/0.1',
+          'x-user-agent': 'grpc-web-javacript/0.1'
         },
-        body: JSON.stringify([ this.waaRequestKey, botguardResponse ]),
+        body: JSON.stringify([ this.waaRequestKey, botguardResponse ])
       });
 
       const integrityTokenResponseData = await integrityTokenResponse.json();

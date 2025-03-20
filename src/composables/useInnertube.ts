@@ -1,5 +1,5 @@
 import { inject } from 'vue';
-import { Innertube } from 'youtubei.js/web';
+import type { Innertube } from 'youtubei.js/web';
 
 export function useInnertube(): () => Promise<Innertube> {
   const getInnertube = inject('innertube') as () => Promise<Innertube>;

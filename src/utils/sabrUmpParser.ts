@@ -1,8 +1,10 @@
-import { GoogleVideo, PART, Part, Protos } from "googlevideo";
-import shaka from "shaka-player/dist/shaka-player.ui";
+import type { Part } from 'googlevideo';
+import { GoogleVideo, PART, Protos } from 'googlevideo';
+import shaka from 'shaka-player/dist/shaka-player.ui';
 
 import { cacheSegment } from './cacheHelper';
-import { SabrStreamingContext, HttpFetchPlugin } from "./shakaHttpPlugin";
+import type { SabrStreamingContext } from './shakaHttpPlugin';
+import { HttpFetchPlugin } from './shakaHttpPlugin';
 import { fromFormat, fromMediaHeader } from './formatKeyUtils';
 
 export interface Segment {
@@ -28,7 +30,7 @@ export class SabrUmpParser {
   ) { }
 
   async parse(): Promise<shaka.extern.Response> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const reader = this.response.clone().body!.getReader();
 
       new ReadableStream({
@@ -47,7 +49,7 @@ export class SabrUmpParser {
         const readObj = await reader.read();
 
         if (!readObj.done) {
-          let value = this.handlePartialData(readObj.value);
+          const value = this.handlePartialData(readObj.value);
           this.processUmpData(value, resolve, controller);
         }
 
@@ -57,7 +59,7 @@ export class SabrUmpParser {
           controller.enqueue(readObj.value);
           push();
         }
-      } catch (e) {
+      } catch {
         /** no-op */
       }
     };
@@ -80,7 +82,7 @@ export class SabrUmpParser {
     resolve: (value: shaka.extern.Response) => void,
     controller: ReadableStreamDefaultController
   ) {
-    const ump = new GoogleVideo.UMP(new GoogleVideo.ChunkedDataBuffer([value]));
+    const ump = new GoogleVideo.UMP(new GoogleVideo.ChunkedDataBuffer([ value ]));
 
     const partialPart = ump.parse((part: Part) => {
       switch (part.type) {
@@ -107,6 +109,7 @@ export class SabrUmpParser {
           break;
         case PART.SABR_REDIRECT:
           // @TODO: Handle redirects. Quite rare with SABR.
+          break;
         default:
       }
     });
@@ -138,7 +141,7 @@ export class SabrUmpParser {
       this.mainSegments.push({
         headerId: mediaHeader.headerId,
         mediaHeader: mediaHeader,
-        data: new Uint8Array(),
+        data: new Uint8Array()
       });
     }
   }
@@ -154,7 +157,7 @@ export class SabrUmpParser {
       targetSegment.data = newData;
     }
   }
-  private handleMediaEnd(part: Part, resolve: Function, controller: ReadableStreamDefaultController) {
+  private handleMediaEnd(part: Part, resolve: (value: shaka.extern.Response) => void, controller: ReadableStreamDefaultController) {
     const headerId = part.data.getUint8(0);
     const targetSegment = this.mainSegments.find((segment) => segment.headerId === headerId);
 
@@ -166,10 +169,10 @@ export class SabrUmpParser {
           ...this.decodedStreamingContext.streamInfo,
           playbackCookie: this.playbackCookie,
           formatInitMetadata: this.formatInitMetadata,
-          mediaHeader: targetSegment.mediaHeader,
+          mediaHeader: targetSegment.mediaHeader
         };
 
-        headers["X-Streaming-Context"] = btoa(JSON.stringify(this.decodedStreamingContext));
+        headers['X-Streaming-Context'] = btoa(JSON.stringify(this.decodedStreamingContext));
       }
 
       let arrayBuffer: Uint8Array;
@@ -189,14 +192,14 @@ export class SabrUmpParser {
       this.abortController.abort();
     }
   }
-  private handleSabrError(part: Part, resolve: Function, controller: ReadableStreamDefaultController) {
+  private handleSabrError(part: Part, resolve: (value: shaka.extern.Response) => void, controller: ReadableStreamDefaultController) {
     const sabrError = Protos.SabrError.decode(part.data.chunks[0]);
-    const error = new shaka.util.Error(shaka.util.Error.Severity.RECOVERABLE, shaka.util.Error.Category.NETWORK, shaka.util.Error.Code.HTTP_ERROR, "SABR Error", sabrError);
+    const error = new shaka.util.Error(shaka.util.Error.Severity.RECOVERABLE, shaka.util.Error.Category.NETWORK, shaka.util.Error.Code.HTTP_ERROR, 'SABR Error', sabrError);
     const headers = HttpFetchPlugin.headersToGenericObject_(this.response.headers);
 
     if (this.decodedStreamingContext) {
       this.decodedStreamingContext.error = { sabrError };
-      headers["X-Streaming-Context"] = btoa(JSON.stringify(this.decodedStreamingContext));
+      headers['X-Streaming-Context'] = btoa(JSON.stringify(this.decodedStreamingContext));
     }
 
     resolve(HttpFetchPlugin.makeResponse(headers, new ArrayBuffer(), this.response.status, this.uri, this.response.url, this.requestType));
@@ -207,17 +210,17 @@ export class SabrUmpParser {
 
     throw error;
   }
-  private handleStreamProtectionStatus(part: Part, resolve: Function, controller: ReadableStreamDefaultController) {
+  private handleStreamProtectionStatus(part: Part, resolve: (value: shaka.extern.Response) => void, controller: ReadableStreamDefaultController) {
     const streamProtectionStatus = Protos.StreamProtectionStatus.decode(part.data.chunks[0]);
     const headers = HttpFetchPlugin.headersToGenericObject_(this.response.headers);
-    const error = new shaka.util.Error(shaka.util.Error.Severity.RECOVERABLE, shaka.util.Error.Category.NETWORK, shaka.util.Error.Code.HTTP_ERROR, "Stream Protection Status", streamProtectionStatus);
+    const error = new shaka.util.Error(shaka.util.Error.Severity.RECOVERABLE, shaka.util.Error.Category.NETWORK, shaka.util.Error.Code.HTTP_ERROR, 'Stream Protection Status', streamProtectionStatus);
 
     if (this.decodedStreamingContext) {
       this.decodedStreamingContext.streamInfo = {
         ...this.decodedStreamingContext.streamInfo,
         streamProtectionStatus
       };
-      headers["X-Streaming-Context"] = btoa(JSON.stringify(this.decodedStreamingContext));
+      headers['X-Streaming-Context'] = btoa(JSON.stringify(this.decodedStreamingContext));
     }
 
     if (streamProtectionStatus.status === 3) {

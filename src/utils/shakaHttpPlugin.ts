@@ -1,6 +1,6 @@
 import shaka from 'shaka-player/dist/shaka-player.ui';
-import { Misc } from 'youtubei.js/web';
-import { Protos } from 'googlevideo';
+import type { Misc } from 'youtubei.js/web';
+import type { Protos } from 'googlevideo';
 
 import { retrieveCachedSegment } from './cacheHelper';
 import { SabrUmpParser } from './sabrUmpParser';
@@ -43,8 +43,7 @@ export class HttpFetchPlugin {
     request: shaka.extern.Request,
     requestType: shaka.net.NetworkingEngine.RequestType,
     _progressUpdated: shaka.extern.ProgressUpdated,
-    headersReceived: shaka.extern.HeadersReceived,
-    _config: shaka.extern.SchemePluginConfig
+    headersReceived: shaka.extern.HeadersReceived
   ): shaka.extern.IAbortableOperation<shaka.extern.Response> {
     const headers = new HttpFetchPlugin.Headers_();
 
@@ -72,12 +71,12 @@ export class HttpFetchPlugin {
       headers,
       method: request.method,
       signal: controller.signal,
-      credentials: request.allowCrossSiteCredentials ? 'include' : undefined,
+      credentials: request.allowCrossSiteCredentials ? 'include' : undefined
     };
 
     const abortStatus = {
       canceled: false,
-      timedOut: false,
+      timedOut: false
     };
 
     const pendingRequest = HttpFetchPlugin.request_(uri, requestType, init, controller, abortStatus, headersReceived, sabrStreamingContext);
@@ -183,15 +182,14 @@ export class HttpFetchPlugin {
         data,
         status,
         headers,
-        fromCache: !!headers['x-shaka-from-cache'],
+        fromCache: !!headers['x-shaka-from-cache']
       };
     }
 
     let responseText: string | null = null;
     try {
       responseText = shaka.util.StringUtils.fromBytesAutoDetect(data);
-    } catch {
-    }
+    } catch { /* no-op */ }
 
     const severity = status === 401 || status === 403
       ? shaka.util.Error.Severity.CRITICAL

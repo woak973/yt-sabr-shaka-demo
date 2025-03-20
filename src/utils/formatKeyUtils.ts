@@ -1,6 +1,6 @@
-import { Misc } from 'youtubei.js/web';
-import { Protos } from 'googlevideo';
-import { SabrStreamingContext } from './shakaHttpPlugin';
+import type { Misc } from 'youtubei.js/web';
+import type { Protos } from 'googlevideo';
+import type { SabrStreamingContext } from './shakaHttpPlugin';
 
 /**
  * Creates a format key based on itag and xtags

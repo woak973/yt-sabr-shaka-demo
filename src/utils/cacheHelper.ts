@@ -1,9 +1,10 @@
-import shaka from "shaka-player/dist/shaka-player.ui";
-import { Misc } from "youtubei.js";
+import type shaka from 'shaka-player/dist/shaka-player.ui';
+import type { Misc } from 'youtubei.js';
 
-import { HttpFetchPlugin, SabrStreamingContext } from "./shakaHttpPlugin";
+import type { SabrStreamingContext } from './shakaHttpPlugin';
+import { HttpFetchPlugin } from './shakaHttpPlugin';
 import { createSegmentCacheKey, createSegmentCacheKeyFromContext } from './formatKeyUtils';
-import { Segment } from "./sabrUmpParser";
+import type { Segment } from './sabrUmpParser';
 
 /**
  * Caches a segment with its associated format

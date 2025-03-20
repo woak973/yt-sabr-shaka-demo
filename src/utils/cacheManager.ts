@@ -100,14 +100,14 @@ export class CacheManager {
   private clearExpiredEntries(): void {
     const now = Date.now();
 
-    for (const [key, entry] of this.segmentCache.entries()) {
+    for (const [ key, entry ] of this.segmentCache.entries()) {
       if (now - entry.timestamp > this.maxAge) {
         this.segmentCache.delete(key);
         this.currentSize -= entry.size;
       }
     }
 
-    for (const [key, entry] of this.initSegmentCache.entries()) {
+    for (const [ key, entry ] of this.initSegmentCache.entries()) {
       if (now - entry.timestamp > this.maxAge) {
         this.initSegmentCache.delete(key);
         this.currentSize -= entry.size;
@@ -119,12 +119,12 @@ export class CacheManager {
     const segments = Array.from(this.segmentCache.entries());
     const initSegments = Array.from(this.initSegmentCache.entries());
 
-    const allEntries = [...segments, ...initSegments]
+    const allEntries = [ ...segments, ...initSegments ]
       .sort((a, b) => a[1].timestamp - b[1].timestamp);
 
     // Remove oldest entries until under limit
     while (this.currentSize > this.maxCacheSize && allEntries.length > 0) {
-      const [key, entry] = allEntries.shift()!;
+      const [ key, entry ] = allEntries.shift()!;
       this.segmentCache.delete(key);
       this.initSegmentCache.delete(key);
       this.currentSize -= entry.size;
