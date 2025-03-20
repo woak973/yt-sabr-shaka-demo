@@ -405,10 +405,10 @@ async function setupRequestFilters() {
           clientAbrState: {
             playbackRate: player.getPlaybackRate(),
             playerTimeMs: Math.round((context?.segment?.getStartTime() ?? videoElement.value.currentTime) * 1000),
-            elapsedWallTimeMs: new Date().getTime() - lastRequestMs,
-            timeSinceLastSeek: lastSeekMs === 0 ? 0 : new Date().getTime() - lastSeekMs,
-            timeSinceLastActionMs: lastActionMs === 0 ? 0 : new Date().getTime() - lastActionMs,
-            timeSinceLastManualFormatSelectionMs: lastManualFormatSelectionMs === 0 ? 0 : new Date().getTime() - lastManualFormatSelectionMs,
+            elapsedWallTimeMs: Date.now() - lastRequestMs,
+            timeSinceLastSeek: lastSeekMs === 0 ? 0 : Date.now() - lastSeekMs,
+            timeSinceLastActionMs: lastActionMs === 0 ? 0 : Date.now() - lastActionMs,
+            timeSinceLastManualFormatSelectionMs: lastManualFormatSelectionMs === 0 ? 0 : Date.now() - lastManualFormatSelectionMs,
             clientViewportIsFlexible: false,
             lastManualDirection: 0,
             bandwidthEstimate: Math.round(playerStats.estimatedBandwidth),
@@ -599,7 +599,7 @@ onMounted(async () => {
     return;
   }
 
-  videoElement.value.addEventListener('seeked', () => lastSeekMs = new Date().getTime());
+  videoElement.value.addEventListener('seeked', () => lastSeekMs = Date.now());
 
   window.addEventListener('resize', () => {
     clientViewportHeight = window.innerHeight;
