@@ -88,7 +88,7 @@
           </div>
         </div>
         <div class="video-stats">
-          <span class="views" v-if="videoDetails.views">{{ videoDetails.views }} views</span>
+          <span class="views" v-if="videoDetails.views">{{ videoDetails.views }}</span>
           <span class="date" v-if="videoDetails.publishDate">{{ videoDetails.publishDate }}</span>
         </div>
       </div>
