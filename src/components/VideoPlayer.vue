@@ -311,14 +311,14 @@ async function mintSessionPoToken() {
     sessionPoTokenCreationLock = true;
 
     coldStartToken = botguardService.mintColdStartToken(sessionPoTokenContentBinding);
-    console.info('[Player]', `Cold start token created: ${coldStartToken} (Content binding: ${sessionPoTokenContentBinding})`);
+    console.info('[Player]', `Cold start token created: ${coldStartToken} (Content binding: ${decodeURIComponent(sessionPoTokenContentBinding)})`);
 
     try {
       if (!botguardService.isInitialized())
         await botguardService.reinit();
 
       if (botguardService.integrityTokenBasedMinter)
-        sessionPoToken = await botguardService.integrityTokenBasedMinter.mintAsWebsafeString(sessionPoTokenContentBinding);
+        sessionPoToken = await botguardService.integrityTokenBasedMinter.mintAsWebsafeString(decodeURIComponent(sessionPoTokenContentBinding));
     } catch (err) {
       console.error('[Player]', 'Error minting session PO token', err);
     } finally {
@@ -326,7 +326,7 @@ async function mintSessionPoToken() {
     }
 
     if (sessionPoToken)
-      console.info('[Player]', `Session PO token created: ${sessionPoToken} (Content binding: ${sessionPoTokenContentBinding})`);
+      console.info('[Player]', `Session PO token created: ${sessionPoToken} (Content binding: ${decodeURIComponent(sessionPoTokenContentBinding)})`);
   }
 }
 
@@ -467,7 +467,7 @@ async function setupRequestFilters() {
                 formatId: initializedFormat.lastSegmentMetadata.formatId,
                 startSegmentIndex: initializedFormat.lastSegmentMetadata.startSequenceNumber,
                 durationMs: initializedFormat.lastSegmentMetadata.durationMs,
-                startTimeMs: 0,
+                startTimeMs: initializedFormat.lastSegmentMetadata.startTimeMs,
                 endSegmentIndex: initializedFormat.lastSegmentMetadata.endSequenceNumber
               });
             }
