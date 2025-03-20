@@ -1,6 +1,7 @@
 # UMP-SABR Shaka Demo
 
 This is web app demonstrating a SABR/UMP player implementation using Shaka Player. It supports all streaming formats YouTube currently uses.
+![Screenshot 2025-03-20 133800](https://github.com/user-attachments/assets/507abd03-da1e-4f05-b56f-d196152cf478)
 
 ## Prerequisites
 
