@@ -84,7 +84,7 @@ export class SabrUmpParser {
   ) {
     const ump = new GoogleVideo.UMP(new GoogleVideo.ChunkedDataBuffer([ value ]));
 
-    const partialPart = ump.parse((part: Part) => {
+    this.partialPart = ump.parse((part: Part) => {
       switch (part.type) {
         case PART.FORMAT_INITIALIZATION_METADATA:
           this.handleFormatInitMetadata(part);
@@ -113,10 +113,6 @@ export class SabrUmpParser {
         default:
       }
     });
-
-    if (partialPart) {
-      this.partialPart = partialPart;
-    }
   }
 
   private handleFormatInitMetadata(part: Part) {
@@ -188,6 +184,7 @@ export class SabrUmpParser {
 
       resolve(HttpFetchPlugin.makeResponse(headers, arrayBuffer, this.response.status, this.uri, this.response.url, this.requestType));
 
+      // We got what we wanted; close the stream and abort the request.
       controller.close();
       this.abortController.abort();
     }
@@ -204,7 +201,6 @@ export class SabrUmpParser {
 
     resolve(HttpFetchPlugin.makeResponse(headers, new ArrayBuffer(), this.response.status, this.uri, this.response.url, this.requestType));
 
-    // Close the stream and abort the request.
     controller.close();
     this.abortController.abort();
 
@@ -226,7 +222,6 @@ export class SabrUmpParser {
     if (streamProtectionStatus.status === 3) {
       resolve(HttpFetchPlugin.makeResponse(headers, new ArrayBuffer(), this.response.status, this.uri, this.response.url, this.requestType));
 
-      // Close the stream and abort the request.
       controller.close();
       this.abortController.abort();
 

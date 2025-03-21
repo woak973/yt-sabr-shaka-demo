@@ -400,7 +400,7 @@ async function setupRequestFilters() {
         const playbackCookie = lastPlaybackCookie ? Protos.PlaybackCookie.encode(lastPlaybackCookie).finish() : undefined;
 
         const playerStats = player.getStats();
-
+        
         const videoPlaybackAbrRequest: Protos.VideoPlaybackAbrRequest = {
           clientAbrState: {
             playbackRate: player.getPlaybackRate(),
@@ -436,7 +436,6 @@ async function setupRequestFilters() {
           },
           field1000: []
         };
-
 
         const currentFormatWidth = currentFormat.width;
         const currentFormatHeight = currentFormat.height;

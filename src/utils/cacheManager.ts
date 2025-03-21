@@ -1,5 +1,5 @@
 export interface CacheEntry {
-  data: ArrayBuffer;
+  data: Uint8Array<ArrayBuffer>;
   timestamp: number;
   size: number;
 }
@@ -20,7 +20,7 @@ export class CacheManager {
     this.startGarbageCollection();
   }
 
-  public setInitSegment(key: string, data: ArrayBuffer): void {
+  public setInitSegment(key: string, data: Uint8Array<ArrayBuffer>): void {
     const entry: CacheEntry = {
       data,
       timestamp: Date.now(),
@@ -35,7 +35,7 @@ export class CacheManager {
     this.initSegmentCache.set(key, entry);
   }
 
-  public setSegment(key: string, data: ArrayBuffer): void {
+  public setSegment(key: string, data: Uint8Array<ArrayBuffer>): void {
     const entry: CacheEntry = {
       data,
       timestamp: Date.now(),
@@ -47,7 +47,7 @@ export class CacheManager {
     this.segmentCache.set(key, entry);
   }
 
-  public getInitSegment(key: string): ArrayBuffer | undefined {
+  public getInitSegment(key: string): Uint8Array<ArrayBuffer> | undefined {
     const entry = this.initSegmentCache.get(key);
 
     if (entry && !this.isExpired(entry)) {
@@ -64,7 +64,7 @@ export class CacheManager {
     return undefined;
   }
 
-  public getSegment(key: string): ArrayBuffer | undefined {
+  public getSegment(key: string): Uint8Array<ArrayBuffer> | undefined {
     const entry = this.segmentCache.get(key);
     if (entry && !this.isExpired(entry)) {
       const data = entry.data;

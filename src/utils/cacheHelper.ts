@@ -44,9 +44,11 @@ export function retrieveCachedSegment(
 
   let arrayBuffer: ArrayBuffer | undefined;
 
-  arrayBuffer = decodedStreamingContext.isInit ?
-    HttpFetchPlugin.cacheManager.getInitSegment(segmentKey) :
-    HttpFetchPlugin.cacheManager.getSegment(segmentKey);
+  arrayBuffer = (
+    decodedStreamingContext.isInit ?
+      HttpFetchPlugin.cacheManager.getInitSegment(segmentKey) :
+      HttpFetchPlugin.cacheManager.getSegment(segmentKey)
+  )?.buffer;
 
   if (arrayBuffer) {
     if (decodedStreamingContext.isInit) {
@@ -70,4 +72,6 @@ export function retrieveCachedSegment(
       requestType
     );
   }
+  
+  return;
 }
