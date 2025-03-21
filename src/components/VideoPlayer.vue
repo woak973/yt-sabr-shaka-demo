@@ -46,18 +46,19 @@ video {
         Enable UMP
       </label>
       <label :class="{ disabled: !flags.useUmp || flags.isLiveContent || flags.isPostLiveDVR }">
-        <input v-model="flags.useSabr" :disabled="!flags.useUmp || flags.isLiveContent || flags.isPostLiveDVR" type="checkbox"
-          @change="handleFlagChange">
+        <input v-model="flags.useSabr" :disabled="!flags.useUmp || flags.isLiveContent || flags.isPostLiveDVR"
+               type="checkbox"
+               @change="handleFlagChange">
         Use SABR stream
       </label>
       <label :class="{ disabled: flags.useSabr || flags.requestIdempotent }">
         <input v-model="flags.postEmptyBody" :disabled="flags.useSabr || flags.requestIdempotent" type="checkbox"
-          @change="handleFlagChange">
+               @change="handleFlagChange">
         Send POST with empty body
       </label>
       <label :class="{ disabled: flags.useSabr || flags.postEmptyBody || flags.useUmp }">
         <input v-model="flags.requestIdempotent" :disabled="flags.useSabr || flags.postEmptyBody || flags.useUmp"
-          type="checkbox" @change="handleFlagChange">
+               type="checkbox" @change="handleFlagChange">
         Use GET with range header
       </label>
     </div>
@@ -263,7 +264,7 @@ async function initializePlayer() {
 
     const clientPlaybackNonce = Utils.generateRandomString(12);
     const rawResponse = await watchEndpoint.call(innertube.actions, { ...extraArgs, parse: false });
-    const videoInfo = new YT.VideoInfo([rawResponse], innertube.actions, clientPlaybackNonce);
+    const videoInfo = new YT.VideoInfo([ rawResponse ], innertube.actions, clientPlaybackNonce);
 
     isLive = !!videoInfo.basic_info.is_live;
     isPostLiveDVR = !!videoInfo.basic_info.is_post_live_dvr;
@@ -272,7 +273,7 @@ async function initializePlayer() {
       flags.useSabr = false;
       flags.isLiveContent = true;
     }
-    
+
     if (isPostLiveDVR) {
       flags.useSabr = false;
       flags.isPostLiveDVR = true;
@@ -282,7 +283,7 @@ async function initializePlayer() {
 
     // Modify adaptive formats to use the SABR stream.
     if (videoInfo.streaming_data && flags.useUmp && flags.useSabr && !flags.requestIdempotent && !flags.postEmptyBody) {
-     formatList = videoInfo.streaming_data.adaptive_formats.map((format) => {
+      formatList = videoInfo.streaming_data.adaptive_formats.map((format) => {
         const formatKey = fromFormat(format) || '';
         format.url = `${innertube.session.player?.decipher(videoInfo.streaming_data?.server_abr_streaming_url)}&___key=${formatKey}`;
         format.signature_cipher = undefined;
@@ -293,16 +294,22 @@ async function initializePlayer() {
 
     let manifestUri: string | undefined;
 
-    if (isLive) {
-      manifestUri = videoInfo.streaming_data?.dash_manifest_url ? (videoInfo.streaming_data?.dash_manifest_url + '/mpd_version/7') : videoInfo.streaming_data?.hls_manifest_url;
-    } else if (videoInfo.streaming_data?.dash_manifest_url && isPostLiveDVR) {
-      manifestUri = videoInfo.streaming_data.dash_manifest_url + '/mpd_version/7';
-    } else {
-      manifestUri = `data:application/dash+xml;base64,${btoa(await videoInfo.toDash(undefined, undefined, { captions_format: 'vtt' }))}`;
+    if (videoInfo.streaming_data) {
+      if (isLive) {
+        manifestUri = videoInfo.streaming_data.dash_manifest_url ?
+          (`${videoInfo.streaming_data.dash_manifest_url}/mpd_version/7`) :
+          videoInfo.streaming_data.hls_manifest_url;
+      } else if (videoInfo.streaming_data.dash_manifest_url && isPostLiveDVR) {
+        manifestUri = videoInfo.streaming_data.hls_manifest_url ?
+          videoInfo.streaming_data.hls_manifest_url : // HLS is preferred for DVR streams.
+          (`${videoInfo.streaming_data.dash_manifest_url}/mpd_version/7`);
+      } else {
+        manifestUri = `data:application/dash+xml;base64,${btoa(await videoInfo.toDash(undefined, undefined, { captions_format: 'vtt' }))}`;
+      }
     }
 
     if (!manifestUri) {
-      console.error('No manifest URI found.');
+      console.error('Could not find a valid manifest URI.');
       return;
     }
 
@@ -410,7 +417,7 @@ async function setupRequestFilters() {
         const playbackCookie = lastPlaybackCookie ? Protos.PlaybackCookie.encode(lastPlaybackCookie).finish() : undefined;
 
         const playerStats = player.getStats();
-        
+
         const videoPlaybackAbrRequest: Protos.VideoPlaybackAbrRequest = {
           clientAbrState: {
             playbackRate: player.getPlaybackRate(),
@@ -429,8 +436,8 @@ async function setupRequestFilters() {
           },
           bufferedRanges: [],
           selectedFormatIds: [],
-          selectedAudioFormatIds: [audioFormatId || {}],
-          selectedVideoFormatIds: [videoFormatId || {}],
+          selectedAudioFormatIds: [ audioFormatId || {} ],
+          selectedVideoFormatIds: [ videoFormatId || {} ],
           videoPlaybackUstreamerConfig: base64ToU8(videoPlaybackUstreamerConfig),
           streamerContext: {
             poToken: base64ToU8(sessionPoToken ?? coldStartToken ?? ''),
@@ -453,7 +460,7 @@ async function setupRequestFilters() {
         // Normalize the resolution.
         if (currentFormatWidth && currentFormatHeight) {
           let resolution = currentFormat.height;
-          
+
           const aspectRatio = currentFormatWidth / currentFormatWidth;
 
           if (aspectRatio > (16 / 9)) {
@@ -510,7 +517,7 @@ async function setupRequestFilters() {
         request.headers['X-Streaming-Context'] = btoa(JSON.stringify(sabrStreamingContext));
         delete headers.Range;
       } else if (isUmp) {
-        if (!isLive || !isPostLiveDVR) {
+        if (!isLive && !isPostLiveDVR) {
           url.searchParams.set('ump', '1');
           url.searchParams.set('srfvp', '1');
           if (headers.Range) {
@@ -533,7 +540,7 @@ async function setupRequestFilters() {
 
       if (!isSabr) {
         if (!flags.postEmptyBody && request.method === 'POST') {
-          request.body = new Uint8Array([120, 0]);
+          request.body = new Uint8Array([ 120, 0 ]);
         }
 
         // Set Proof of Origin Token
