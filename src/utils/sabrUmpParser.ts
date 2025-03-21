@@ -68,7 +68,7 @@ export class SabrUmpParser {
 
   private handlePartialData(value: Uint8Array): Uint8Array {
     if (this.partialPart && this.partialPart.data.getLength()) {
-      const newValue = new Uint8Array(this.partialPart.data.getLength() + value.length);
+      const newValue = new Uint8Array(this.partialPart.data.getLength() + value.byteLength);
       newValue.set(this.partialPart.data.chunks[0]);
       newValue.set(value, this.partialPart.data.getLength());
       this.partialPart = undefined;
@@ -147,13 +147,13 @@ export class SabrUmpParser {
   }
   private handleMedia(part: Part) {
     const headerId = part.data.getUint8(0);
-    const chunk = part.data.split(1).remainingBuffer.chunks[0];
+    const buffer = part.data.split(1).remainingBuffer;
     const targetSegment = this.mainSegments.find((segment) => segment.headerId === headerId);
 
     if (targetSegment) {
-      const newData = new Uint8Array(targetSegment.data.length + chunk.length);
+      const newData = new Uint8Array(targetSegment.data.byteLength + buffer.getLength());
       newData.set(targetSegment.data);
-      newData.set(chunk, targetSegment.data.length);
+      newData.set(buffer.chunks[0], targetSegment.data.byteLength);
       targetSegment.data = newData;
     }
   }
@@ -169,7 +169,7 @@ export class SabrUmpParser {
           ...this.decodedStreamingContext.streamInfo,
           playbackCookie: this.playbackCookie,
           formatInitMetadata: this.formatInitMetadata,
-          mediaHeader: targetSegment.mediaHeader
+          mediaHeader: targetSegment.mediaHeader.isInitSeg ? undefined : targetSegment.mediaHeader
         };
 
         headers['X-Streaming-Context'] = btoa(JSON.stringify(this.decodedStreamingContext));

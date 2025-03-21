@@ -119,7 +119,7 @@ interface VideoDetails {
   views?: string;
   publishDate?: string;
   description: string;
-};
+}
 
 const videoDetails = ref<VideoDetails | undefined>();
 

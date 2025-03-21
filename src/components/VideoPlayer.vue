@@ -437,13 +437,14 @@ async function setupRequestFilters() {
           field1000: []
         };
 
-        let resolution = currentFormat.height;
 
         const currentFormatWidth = currentFormat.width;
         const currentFormatHeight = currentFormat.height;
 
         // Normalize the resolution.
         if (currentFormatWidth && currentFormatHeight) {
+          let resolution = currentFormat.height;
+          
           const aspectRatio = currentFormatWidth / currentFormatWidth;
 
           if (aspectRatio > (16 / 9)) {
@@ -467,7 +468,7 @@ async function setupRequestFilters() {
                 formatId: initializedFormat.lastSegmentMetadata.formatId,
                 startSegmentIndex: initializedFormat.lastSegmentMetadata.startSequenceNumber,
                 durationMs: initializedFormat.lastSegmentMetadata.durationMs,
-                startTimeMs: initializedFormat.lastSegmentMetadata.startTimeMs,
+                startTimeMs: 0,
                 endSegmentIndex: initializedFormat.lastSegmentMetadata.endSequenceNumber
               });
             }
@@ -578,7 +579,7 @@ async function setupRequestFilters() {
                 formatId: mainSegmentMediaHeader.formatId!,
                 startTimeMs: mainSegmentMediaHeader.startMs || 0,
                 startSequenceNumber: mainSegmentMediaHeader.sequenceNumber || 1,
-                endSequenceNumber: (mainSegmentMediaHeader.sequenceNumber || 0) + 1,
+                endSequenceNumber: (mainSegmentMediaHeader.sequenceNumber || 1),
                 durationMs: mainSegmentMediaHeader.durationMs || 0
               };
             }
