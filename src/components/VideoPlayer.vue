@@ -203,10 +203,6 @@ async function initializePlayer() {
     player.configure({
       abr: {
         enabled: true,
-        defaultBandwidthEstimate: 500000,
-        switchInterval: 2,
-        bandwidthDowngradeTarget: 0.95,
-        bandwidthUpgradeTarget: 0.85,
         restrictions: {
           maxWidth: 1920,
           maxHeight: 1080
@@ -215,7 +211,7 @@ async function initializePlayer() {
       streaming: {
         bufferingGoal: 120,
         rebufferingGoal: 0.001,
-        bufferBehind: 60,
+        bufferBehind: 120,
         retryParameters: {
           maxAttempts: 30,
           baseDelay: 1500,
