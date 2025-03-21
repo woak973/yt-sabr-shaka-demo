@@ -114,6 +114,7 @@ const flags = reactive({
   postEmptyBody: false,
   // If true, segment requests will be sent as GET requests with a range header.
   requestIdempotent: false,
+  // Content that should not use SABR.
   isLiveContent: false,
   isPostLiveDVR: false
 });
@@ -137,8 +138,9 @@ let lastManualFormatSelectionMs = 0;
 let lastActionMs = 0;
 let lastPlaybackCookie: Protos.PlaybackCookie | undefined;
 
-let clientViewportHeight = window.innerHeight;
-let clientViewportWidth = window.innerWidth;
+let videoElementResizeObserver: ResizeObserver | undefined;
+let clientViewportHeight = videoElement.value?.clientHeight || 0;
+let clientViewportWidth = videoElement.value?.clientWidth || 0;
 
 const handleFlagChange = async () => {
   console.info('[Player]', 'Flags changed. Clearing state...');
@@ -618,20 +620,20 @@ onMounted(async () => {
 
   videoElement.value.addEventListener('seeked', () => lastSeekMs = Date.now());
 
-  window.addEventListener('resize', () => {
-    clientViewportHeight = window.innerHeight;
-    clientViewportWidth = window.innerWidth;
+  videoElementResizeObserver = new ResizeObserver(() => {
+    if (videoElement.value) {
+      clientViewportHeight = videoElement.value.clientHeight;
+      clientViewportWidth = videoElement.value.clientWidth;
+    }
   });
+
+  videoElementResizeObserver.observe(videoElement.value);
+
 
   await initializePlayer();
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', () => {
-    clientViewportHeight = window.innerHeight;
-    clientViewportWidth = window.innerWidth;
-  });
-
   HttpFetchPlugin.cacheManager.clearCache();
 
   if (player) {
@@ -647,6 +649,11 @@ onUnmounted(() => {
   }
 
   if (videoElement.value) {
+    if (videoElementResizeObserver) {
+      videoElementResizeObserver.disconnect();
+      videoElementResizeObserver = undefined;
+    }
+
     videoElement.value.src = '';
     videoElement.value.load();
   }
