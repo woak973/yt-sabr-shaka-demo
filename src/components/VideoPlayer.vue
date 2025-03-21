@@ -45,8 +45,8 @@ video {
         <input v-model="flags.useUmp" :disabled="flags.requestIdempotent" type="checkbox" @change="handleFlagChange">
         Enable UMP
       </label>
-      <label :class="{ disabled: !flags.useUmp || flags.isLiveContent }">
-        <input v-model="flags.useSabr" :disabled="!flags.useUmp || flags.isLiveContent" type="checkbox"
+      <label :class="{ disabled: !flags.useUmp || flags.isLiveContent || flags.isPostLiveDVR }">
+        <input v-model="flags.useSabr" :disabled="!flags.useUmp || flags.isLiveContent || flags.isPostLiveDVR" type="checkbox"
           @change="handleFlagChange">
         Use SABR stream
       </label>
@@ -114,12 +114,14 @@ const flags = reactive({
   // If true, segment requests will be sent as GET requests with a range header.
   requestIdempotent: false,
   isLiveContent: false,
+  isPostLiveDVR: false
 });
 
 let player: shaka.Player | null = null;
 let shakaUi: shaka.ui.Overlay | null = null;
 let currentTime = 0;
 let isLive = false;
+let isPostLiveDVR = false;
 let formatList: Misc.Format[] = [];
 let videoPlaybackUstreamerConfig: string | undefined = undefined;
 
@@ -264,10 +266,16 @@ async function initializePlayer() {
     const videoInfo = new YT.VideoInfo([rawResponse], innertube.actions, clientPlaybackNonce);
 
     isLive = !!videoInfo.basic_info.is_live;
+    isPostLiveDVR = !!videoInfo.basic_info.is_post_live_dvr;
 
     if (isLive) {
       flags.useSabr = false;
       flags.isLiveContent = true;
+    }
+    
+    if (isPostLiveDVR) {
+      flags.useSabr = false;
+      flags.isPostLiveDVR = true;
     }
 
     videoPlaybackUstreamerConfig = videoInfo.page[0].player_config?.media_common_config.media_ustreamer_request_config?.video_playback_ustreamer_config;
@@ -287,6 +295,8 @@ async function initializePlayer() {
 
     if (isLive) {
       manifestUri = videoInfo.streaming_data?.dash_manifest_url ? (videoInfo.streaming_data?.dash_manifest_url + '/mpd_version/7') : videoInfo.streaming_data?.hls_manifest_url;
+    } else if (videoInfo.streaming_data?.dash_manifest_url && isPostLiveDVR) {
+      manifestUri = videoInfo.streaming_data.dash_manifest_url + '/mpd_version/7';
     } else {
       manifestUri = `data:application/dash+xml;base64,${btoa(await videoInfo.toDash(undefined, undefined, { captions_format: 'vtt' }))}`;
     }
@@ -500,7 +510,7 @@ async function setupRequestFilters() {
         request.headers['X-Streaming-Context'] = btoa(JSON.stringify(sabrStreamingContext));
         delete headers.Range;
       } else if (isUmp) {
-        if (!isLive) {
+        if (!isLive || !isPostLiveDVR) {
           url.searchParams.set('ump', '1');
           url.searchParams.set('srfvp', '1');
           if (headers.Range) {
@@ -527,7 +537,7 @@ async function setupRequestFilters() {
         }
 
         // Set Proof of Origin Token
-        if (isLive) {
+        if (isLive || isPostLiveDVR) {
           url.pathname += '/pot/' + (sessionPoToken ?? coldStartToken ?? '');
         } else {
           if (sessionPoToken || coldStartToken)
