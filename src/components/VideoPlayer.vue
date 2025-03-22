@@ -125,11 +125,12 @@ let currentTime = 0;
 let isLive = false;
 let isPostLiveDVR = false;
 let formatList: Misc.Format[] = [];
-let videoPlaybackUstreamerConfig: string | undefined = undefined;
+let videoPlaybackUstreamerConfig: string | undefined;
+let drmParams: string | undefined;
 
-let sessionPoToken: string | undefined = undefined;
-let coldStartToken: string | undefined = undefined;
-let sessionPoTokenContentBinding: string | undefined = undefined;
+let sessionPoToken: string | undefined;
+let coldStartToken: string | undefined;
+let sessionPoTokenContentBinding: string | undefined;
 let sessionPoTokenCreationLock = false;
 
 let lastRequestMs = 0;
@@ -141,6 +142,9 @@ let lastPlaybackCookie: Protos.PlaybackCookie | undefined;
 let videoElementResizeObserver: ResizeObserver | undefined;
 let clientViewportHeight = videoElement.value?.clientHeight || 0;
 let clientViewportWidth = videoElement.value?.clientWidth || 0;
+
+const clientPlaybackNonce = Utils.generateRandomString(12);
+const sessionId = Array.from(Array(16), () => Math.floor(Math.random() * 36).toString(36)).join('');
 
 const handleFlagChange = async () => {
   console.info('[Player]', 'Flags changed. Clearing state...');
@@ -260,7 +264,6 @@ async function initializePlayer() {
       racyCheckOk: true
     };
 
-    const clientPlaybackNonce = Utils.generateRandomString(12);
     const rawResponse = await watchEndpoint.call(innertube.actions, { ...extraArgs, parse: false });
     const videoInfo = new YT.VideoInfo([ rawResponse ], innertube.actions, clientPlaybackNonce);
 
@@ -275,6 +278,17 @@ async function initializePlayer() {
     if (isPostLiveDVR) {
       flags.useSabr = false;
       flags.isPostLiveDVR = true;
+    }
+
+    if (rawResponse.data.streamingData && (rawResponse.data.streamingData as any).drmParams) {
+      drmParams = (rawResponse.data.streamingData as any).drmParams;
+      player.configure({
+        drm: {
+          servers: {
+            'com.widevine.alpha': 'https://www.youtube.com/youtubei/v1/player/get_drm_license?alt=json'
+          }
+        }
+      });
     }
 
     videoPlaybackUstreamerConfig = videoInfo.page[0].player_config?.media_common_config.media_ustreamer_request_config?.video_playback_ustreamer_config;
@@ -549,6 +563,18 @@ async function setupRequestFilters() {
             url.searchParams.set('pot', sessionPoToken ?? coldStartToken ?? '');
         }
       }
+    } else if (type == shaka.net.NetworkingEngine.RequestType.LICENSE) {
+      const innertube = await getInnertube();
+      const wrapped = {} as Record<string, any>;
+      wrapped.context = innertube.session.context;
+      wrapped.cpn = clientPlaybackNonce;
+      wrapped.drmParams = decodeURIComponent(drmParams || '');
+      wrapped.drmSystem = 'DRM_SYSTEM_WIDEVINE';
+      wrapped.drmVideoFeature = 'DRM_VIDEO_FEATURE_SDR';
+      wrapped.licenseRequest = shaka.util.Uint8ArrayUtils.toBase64(request.body as ArrayBuffer | ArrayBufferView);
+      wrapped.sessionId = sessionId;
+      wrapped.videoId = videoId;
+      request.body = shaka.util.StringUtils.toUTF8(JSON.stringify(wrapped));
     }
 
     request.uris[0] = url.toString();
@@ -600,6 +626,11 @@ async function setupRequestFilters() {
           }
         }
       }
+    } else if (type == shaka.net.NetworkingEngine.RequestType.LICENSE) {
+      const wrappedString = shaka.util.StringUtils.fromUTF8(response.data);
+      const wrapped = JSON.parse(wrappedString);
+      const rawLicenseBase64 = wrapped.license;
+      response.data = shaka.util.Uint8ArrayUtils.fromBase64(rawLicenseBase64);
     }
   });
 }
