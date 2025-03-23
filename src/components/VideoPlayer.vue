@@ -65,11 +65,15 @@ video {
     <div ref="shakaContainer" class="video-player">
       <video ref="videoElement" autoplay></video>
     </div>
+    <Teleport to="body">
+      <Toast v-if="toast.show" :message="toast.message" :type="toast.type" @hidden="toast.show = false" />
+    </Teleport>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { onMounted, onUnmounted, reactive, ref } from 'vue';
+import Toast from './Toast.vue';
 
 import shaka from 'shaka-player/dist/shaka-player.ui';
 import 'shaka-player/dist/controls.css';
@@ -146,6 +150,18 @@ let clientViewportWidth = videoElement.value?.clientWidth || 0;
 
 const clientPlaybackNonce = Utils.generateRandomString(12);
 const sessionId = Array.from(Array(16), () => Math.floor(Math.random() * 36).toString(36)).join('');
+
+const toast = reactive({
+  show: false,
+  message: '',
+  type: 'error' as 'error' | 'info'
+});
+
+const showToast = (message: string, type: 'error' | 'info' = 'error') => {
+  toast.message = message;
+  toast.type = type;
+  toast.show = true;
+};
 
 const handleFlagChange = async () => {
   console.info('[Player]', 'Flags changed. Clearing state...');
@@ -309,7 +325,7 @@ async function initializePlayer() {
       serverAbrStreamingUrl = new URL(innertube.session.player!.decipher(videoInfo.streaming_data.server_abr_streaming_url));
 
     if (flags.useSabr && !serverAbrStreamingUrl) {
-      console.error('No server ABR streaming URL found.');
+      showToast('No server ABR streaming URL found.');
       return;
     }
     
@@ -330,7 +346,7 @@ async function initializePlayer() {
     }
 
     if (!manifestUri) {
-      console.error('Could not find a valid manifest URI.');
+      showToast('Could not find a valid manifest URI.');
       return;
     }
 
@@ -340,7 +356,7 @@ async function initializePlayer() {
       videoElement.value.currentTime = currentTime;
     }
   } catch (error) {
-    console.error('Error loading video:', error);
+    showToast(`Error loading video: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -670,7 +686,7 @@ onMounted(async () => {
   shaka.polyfill.installAll();
 
   if (!shaka.Player.isBrowserSupported()) {
-    console.error('Browser not supported!');
+    showToast('Your browser is not supported.');
     return;
   }
 
