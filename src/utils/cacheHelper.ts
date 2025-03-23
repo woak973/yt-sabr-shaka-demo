@@ -72,6 +72,4 @@ export function retrieveCachedSegment(
       requestType
     );
   }
-  
-  return;
 }
