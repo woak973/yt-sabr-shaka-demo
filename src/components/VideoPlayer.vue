@@ -410,12 +410,12 @@ async function setupRequestFilters() {
           throw new Error('No video element found.');
 
         const activeVariant = player.getVariantTracks().find((track) =>
-          (currentFormat.has_video ? track.originalVideoId : track.originalAudioId) === currentFormat.itag.toString() &&
+          (currentFormat.has_video ? track.originalVideoId : track.originalAudioId?.replace('-drc', '')) === currentFormat.itag.toString() &&
           (currentFormat.has_video ? track.videoBandwidth : track.audioBandwidth) === currentFormat.bitrate
         );
 
         const videoFormat = formatList.find((format) => format.itag.toString() === activeVariant?.originalVideoId && format.bitrate === activeVariant?.videoBandwidth);
-        const audioFormat = formatList.find((format) => format.itag.toString() === activeVariant?.originalAudioId && format.bitrate === activeVariant?.audioBandwidth);
+        const audioFormat = formatList.find((format) => format.itag.toString() === activeVariant?.originalAudioId?.replace('-drc', '') && format.bitrate === activeVariant?.audioBandwidth);
 
         let videoFormatId: Protos.FormatId | undefined;
         let audioFormatId: Protos.FormatId | undefined;
