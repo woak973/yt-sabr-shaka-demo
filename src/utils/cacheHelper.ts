@@ -33,9 +33,9 @@ export function retrieveCachedSegment(
   decodedStreamingContext: SabrStreamingContext,
   requestType: shaka.net.NetworkingEngine.RequestType,
   uri: string
-): shaka.extern.Response | undefined {
+): shaka.extern.Response | null {
   if (!decodedStreamingContext.byteRange || !decodedStreamingContext.format)
-    return;
+    return null;
 
   const segmentKey = createSegmentCacheKeyFromContext({
     ...decodedStreamingContext,
@@ -72,4 +72,6 @@ export function retrieveCachedSegment(
       requestType
     );
   }
+  
+  return null;
 }
