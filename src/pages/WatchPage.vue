@@ -1,8 +1,32 @@
 <style scoped>
 .watch-page {
   width: 100%;
-  max-width: 780px;
-  padding: 20px;
+  margin: 0 auto;
+  max-width: 90%;
+}
+
+@media (max-width: 768px) {
+  .watch-page {
+    max-width: 100%;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1199px) {
+  .watch-page {
+    max-width: 85%;
+  }
+}
+
+@media (min-width: 1200px) and (max-width: 1599px) {
+  .watch-page {
+    max-width: 950px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .watch-page {
+    max-width: 1200px;
+  }
 }
 
 .video-info {
