@@ -118,7 +118,6 @@ export class SabrUmpParser {
           break;
         case PART.SABR_REDIRECT:
           this.handleSabrRedirect(part, resolve, controller);
-          // @TODO: Handle redirects. Quite rare with SABR.
           break;
         default:
       }
