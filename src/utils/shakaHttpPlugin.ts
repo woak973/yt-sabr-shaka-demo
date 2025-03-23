@@ -18,6 +18,7 @@ export interface SabrStreamingContext {
     formatInitMetadata?: Protos.FormatInitializationMetadata[];
     streamProtectionStatus?: Protos.StreamProtectionStatus;
     mediaHeader?: Protos.MediaHeader;
+    redirect?: Protos.SabrRedirect;
   };
   error?: {
     sabrError?: Protos.SabrError;

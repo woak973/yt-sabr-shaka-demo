@@ -10,6 +10,10 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
   url.host = 'localhost:8080';
   url.protocol = 'http';
 
+  if (url.pathname.includes('v1/player')) {
+    url.searchParams.set('$fields', 'playerConfig,captions,playabilityStatus,streamingData,responseContext.mainAppWebResponseContext.datasyncId,videoDetails.isLive,videoDetails.isLiveContent,videoDetails.title,videoDetails.author,playbackTracking');
+  }
+
   const headers = init?.headers
     ? new Headers(init.headers)
     : input instanceof Request

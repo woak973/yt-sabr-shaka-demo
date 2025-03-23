@@ -585,13 +585,24 @@ async function setupRequestFilters() {
       const sabrStreamingContext = response.headers['X-Streaming-Context'];
 
       if (sabrStreamingContext) {
-        const { streamInfo } = JSON.parse(atob(sabrStreamingContext)) as SabrStreamingContext;
+        const { streamInfo, isSABR } = JSON.parse(atob(sabrStreamingContext)) as SabrStreamingContext;
 
         if (streamInfo) {
+          const sabrRedirect = streamInfo.redirect;
           const playbackCookie = streamInfo.playbackCookie;
           const streamProtectionStatus = streamInfo.streamProtectionStatus;
           const formatInitMetadata = streamInfo.formatInitMetadata || [];
           const mainSegmentMediaHeader = streamInfo.mediaHeader;
+
+          if (!isSABR && sabrRedirect && sabrRedirect.url) {
+            const redirectRequest = shaka.net.NetworkingEngine.makeRequest([ sabrRedirect.url ], player!.getConfiguration().streaming.retryParameters);
+            const requestOperation = networkingEngine.request(type, redirectRequest);
+            const redirectResponse = await requestOperation.promise;
+            response.data = redirectResponse.data;
+            response.headers = redirectResponse.headers;
+            response.uri = redirectResponse.uri;
+            return;
+          }
 
           if (playbackCookie)
             lastPlaybackCookie = streamInfo.playbackCookie;
