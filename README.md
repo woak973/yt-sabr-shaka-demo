@@ -23,7 +23,7 @@ npm run dev
 
 ## Technical Stuff
 
-About a year or two ago, YouTube started experimenting with SABR (Server ABR) streaming. It allows the server to dynamically adjust the stream based on the user's network conditions and device capabilities. While this is all pretty good for YouTube, it's quite difficult to implement in third-party apps (think FreeTube, NewPipe, GrayJay, etc.)
+About a year or two ago, YouTube started experimenting with SABR (Server ABR) streaming. It allows the server to dynamically adjust the stream based on the user's network conditions and device capabilities. While this is all pretty good for YouTube, it's quite difficult to implement properly in third-party apps (think FreeTube, NewPipe, GrayJay, etc.)
 
 For one, the SABR stream is not a standard DASH/HLS stream. It uses a custom streaming protocol (UMP) that is not compatible with any players available these days. And on top of that, it delivers both audio and video segments in one request, which is another incompatibility with DASH and HLS. It also does not use byte ranges, but rather a time value in milliseconds.
 
