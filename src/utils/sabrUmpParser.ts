@@ -56,6 +56,13 @@ export class SabrUmpParser {
         }
 
         if (readObj.done) {
+          // If we got here, there was no data; it means we must follow this redirect.
+          if (this.decodedStreamingContext.isSABR && this.decodedStreamingContext.streamInfo?.redirect) {
+            const headers = HttpFetchPlugin.headersToGenericObject_(this.response.headers);
+            headers['X-Streaming-Context'] = btoa(JSON.stringify(this.decodedStreamingContext));
+            resolve(HttpFetchPlugin.makeResponse(headers, new ArrayBuffer(), this.response.status, this.uri, this.response.url, this.requestType));
+          }
+
           controller.close();
         } else {
           controller.enqueue(readObj.value);
@@ -122,14 +129,14 @@ export class SabrUmpParser {
     const formatInitMetadata = Protos.FormatInitializationMetadata.decode(part.data.chunks[0]);
     this.formatInitMetadata.push(formatInitMetadata);
   }
-  
+
   private handleNextRequestPolicy(part: Part) {
     const nextRequestPolicy = Protos.NextRequestPolicy.decode(part.data.chunks[0]);
     if (this.decodedStreamingContext.format?.has_video) {
       this.playbackCookie = nextRequestPolicy.playbackCookie;
     }
   }
-  
+
   private handleMediaHeader(part: Part) {
     const mediaHeader = Protos.MediaHeader.decode(part.data.chunks[0]);
     const formatKey = fromFormat(this.decodedStreamingContext.format);
@@ -146,7 +153,7 @@ export class SabrUmpParser {
       });
     }
   }
-  
+
   private handleMedia(part: Part) {
     const headerId = part.data.getUint8(0);
     const buffer = part.data.split(1).remainingBuffer;
@@ -159,7 +166,7 @@ export class SabrUmpParser {
       targetSegment.data = newData;
     }
   }
-  
+
   private handleMediaEnd(part: Part, resolve: ResolveResponse, controller: ReadableStreamDefaultController) {
     const headerId = part.data.getUint8(0);
     const targetSegment = this.mainSegments.find((segment) => segment.headerId === headerId);
@@ -196,7 +203,7 @@ export class SabrUmpParser {
       this.abortController.abort();
     }
   }
-  
+
   private handleSabrError(part: Part, resolve: ResolveResponse, controller: ReadableStreamDefaultController) {
     const sabrError = Protos.SabrError.decode(part.data.chunks[0]);
     const error = new shaka.util.Error(shaka.util.Error.Severity.RECOVERABLE, shaka.util.Error.Category.NETWORK, shaka.util.Error.Code.HTTP_ERROR, 'SABR Error', sabrError);
@@ -214,7 +221,7 @@ export class SabrUmpParser {
 
     throw error;
   }
-  
+
   private handleStreamProtectionStatus(part: Part, resolve: ResolveResponse, controller: ReadableStreamDefaultController) {
     const streamProtectionStatus = Protos.StreamProtectionStatus.decode(part.data.chunks[0]);
     const headers = HttpFetchPlugin.headersToGenericObject_(this.response.headers);
@@ -237,7 +244,7 @@ export class SabrUmpParser {
       throw error;
     }
   }
-  
+
   private handleSabrRedirect(part: Part, resolve: ResolveResponse, controller: ReadableStreamDefaultController) {
     const redirect = Protos.SabrRedirect.decode(part.data.chunks[0]);
     const headers = HttpFetchPlugin.headersToGenericObject_(this.response.headers);
@@ -246,7 +253,8 @@ export class SabrUmpParser {
       this.decodedStreamingContext.streamInfo = {
         ...this.decodedStreamingContext.streamInfo,
         redirect
-      }
+      };
+      headers['X-Streaming-Context'] = btoa(JSON.stringify(this.decodedStreamingContext));
     }
 
     // With pure UMP, redirects should be followed immediately.

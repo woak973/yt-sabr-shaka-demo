@@ -126,6 +126,7 @@ let isLive = false;
 let isPostLiveDVR = false;
 let formatList: Misc.Format[] = [];
 let videoPlaybackUstreamerConfig: string | undefined;
+let serverAbrStreamingUrl: URL;
 let drmParams: string | undefined;
 
 let sessionPoToken: string | undefined;
@@ -297,13 +298,21 @@ async function initializePlayer() {
     if (videoInfo.streaming_data && flags.useUmp && flags.useSabr && !flags.requestIdempotent && !flags.postEmptyBody) {
       formatList = videoInfo.streaming_data.adaptive_formats.map((format) => {
         const formatKey = fromFormat(format) || '';
-        format.url = `${innertube.session.player?.decipher(videoInfo.streaming_data?.server_abr_streaming_url)}&___key=${formatKey}`;
+        format.url = `https://sabr?___key=${formatKey}`;
         format.signature_cipher = undefined;
         format.decipher = () => format.url || '';
         return format;
       });
     }
 
+    if (videoInfo.streaming_data?.server_abr_streaming_url)
+      serverAbrStreamingUrl = new URL(innertube.session.player!.decipher(videoInfo.streaming_data.server_abr_streaming_url));
+
+    if (flags.useSabr && !serverAbrStreamingUrl) {
+      console.error('No server ABR streaming URL found.');
+      return;
+    }
+    
     let manifestUri: string | undefined;
 
     if (videoInfo.streaming_data) {
@@ -369,8 +378,8 @@ async function setupRequestFilters() {
     if (!player)
       return;
 
-    const uri = request.uris[0];
-    const url = new URL(uri);
+    const originalUrl = new URL(request.uris[0]);
+    const url = originalUrl.hostname === 'sabr' ? serverAbrStreamingUrl : originalUrl;
     const headers = request.headers;
 
     // Modify the request to use our proxy for Google Video requests.
@@ -382,14 +391,14 @@ async function setupRequestFilters() {
     }
 
     if (type === shaka.net.NetworkingEngine.RequestType.SEGMENT && url.pathname.includes('videoplayback')) {
-      if (!sessionPoToken)
-        mintSessionPoToken().then();
-
       const isUmp = (url.searchParams.get('ump') === '1' || flags.useUmp) && !flags.requestIdempotent;
       const isSabr = (url.searchParams.get('sabr') === '1' || flags.useSabr) && flags.useUmp && !flags.postEmptyBody && !flags.requestIdempotent;
 
+      if (!sessionPoToken)
+        mintSessionPoToken().then();
+
       if (isSabr) {
-        const currentFormat = formatList.find((format) => fromFormat(format) === url.searchParams.get('___key') || '');
+        const currentFormat = formatList.find((format) => fromFormat(format) === (new URL(request.uris[0]).searchParams.get('___key') || ''));
 
         if (!videoPlaybackUstreamerConfig)
           throw new Error('Ustreamer config not found.');
@@ -580,12 +589,12 @@ async function setupRequestFilters() {
     request.uris[0] = url.toString();
   });
 
-  networkingEngine.registerResponseFilter(async (type, response) => {
+  networkingEngine.registerResponseFilter(async (type, response, context) => {
     if (type === shaka.net.NetworkingEngine.RequestType.SEGMENT) {
       const sabrStreamingContext = response.headers['X-Streaming-Context'];
 
       if (sabrStreamingContext) {
-        const { streamInfo, isSABR } = JSON.parse(atob(sabrStreamingContext)) as SabrStreamingContext;
+        const { streamInfo, isSABR, format } = JSON.parse(atob(sabrStreamingContext)) as SabrStreamingContext;
 
         if (streamInfo) {
           const sabrRedirect = streamInfo.redirect;
@@ -594,16 +603,25 @@ async function setupRequestFilters() {
           const formatInitMetadata = streamInfo.formatInitMetadata || [];
           const mainSegmentMediaHeader = streamInfo.mediaHeader;
 
-          if (!isSABR && sabrRedirect && sabrRedirect.url) {
-            const redirectRequest = shaka.net.NetworkingEngine.makeRequest([ sabrRedirect.url ], player!.getConfiguration().streaming.retryParameters);
-            const requestOperation = networkingEngine.request(type, redirectRequest);
+          // If we have a redirect, follow it.
+          if (sabrRedirect?.url && !response.data.byteLength) {
+            let redirectUrl = new URL(sabrRedirect.url);
+
+            // For SABR, create a fake URL so we can identify it in the request filter.
+            if (isSABR) {
+              serverAbrStreamingUrl = redirectUrl;
+              redirectUrl = new URL('https://sabr');
+              redirectUrl.searchParams.set('___key', fromFormat(format) || '');
+            }
+
+            const redirectRequest = shaka.net.NetworkingEngine.makeRequest([ redirectUrl.toString() ], player!.getConfiguration().streaming.retryParameters);
+            const requestOperation = networkingEngine.request(type, redirectRequest, context);
             const redirectResponse = await requestOperation.promise;
-            response.data = redirectResponse.data;
-            response.headers = redirectResponse.headers;
-            response.uri = redirectResponse.uri;
+
+            Object.assign(response, redirectResponse);
             return;
           }
-
+          
           if (playbackCookie)
             lastPlaybackCookie = streamInfo.playbackCookie;
 
