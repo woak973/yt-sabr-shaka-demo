@@ -66,7 +66,7 @@ video {
       <video ref="videoElement" autoplay></video>
     </div>
     <Teleport to="body">
-      <Toast v-if="toast.show" :message="toast.message" :type="toast.type" @hidden="toast.show = false" />
+      <Toast v-if="toast.show" :message="toast.message" :type="toast.type" @hidden="toast.show = false"/>
     </Teleport>
   </div>
 </template>
@@ -79,7 +79,12 @@ import shaka from 'shaka-player/dist/shaka-player.ui';
 import 'shaka-player/dist/controls.css';
 
 import { HttpFetchPlugin, SabrStreamingContext } from '../utils/shakaHttpPlugin';
-import { fromFormat, fromFormatInitializationMetadata, fromMediaHeader } from '../utils/formatKeyUtils';
+import {
+  fromFormat,
+  fromFormatInitializationMetadata,
+  fromMediaHeader,
+  getUniqueFormatId
+} from '../utils/formatKeyUtils';
 import { useInnertube } from '../composables/useInnertube';
 import { botguardService } from '../services/botguard';
 
@@ -328,7 +333,7 @@ async function initializePlayer() {
       showToast('No server ABR streaming URL found.');
       return;
     }
-    
+
     let manifestUri: string | undefined;
 
     if (videoInfo.streaming_data) {
@@ -425,14 +430,19 @@ async function setupRequestFilters() {
         if (!videoElement.value)
           throw new Error('No video element found.');
 
-        const activeVariant = player.getVariantTracks().find((track) =>
-          (currentFormat.has_video ? track.originalVideoId : track.originalAudioId?.replace('-drc', '')) === currentFormat.itag.toString() &&
-          (currentFormat.has_video ? track.videoBandwidth : track.audioBandwidth) === currentFormat.bitrate
-        );
+        const activeVariant = player.getVariantTracks().find((track) => {
+          const originalId = currentFormat.has_video ? track.originalVideoId : track.originalAudioId;
+          return getUniqueFormatId(currentFormat) === originalId;
+        });
 
-        const videoFormat = formatList.find((format) => format.itag.toString() === activeVariant?.originalVideoId && format.bitrate === activeVariant?.videoBandwidth);
-        const audioFormat = formatList.find((format) => format.itag.toString() === activeVariant?.originalAudioId?.replace('-drc', '') && format.bitrate === activeVariant?.audioBandwidth);
+        const videoFormat = formatList.find((format) => {
+          return !!(activeVariant && getUniqueFormatId(format) === activeVariant.originalVideoId);
+        });
 
+        const audioFormat = formatList.find((format) => {
+          return !!(activeVariant && getUniqueFormatId(format) === activeVariant.originalAudioId);
+        });
+        
         let videoFormatId: Protos.FormatId | undefined;
         let audioFormatId: Protos.FormatId | undefined;
 
@@ -637,7 +647,7 @@ async function setupRequestFilters() {
             Object.assign(response, redirectResponse);
             return;
           }
-          
+
           if (playbackCookie)
             lastPlaybackCookie = streamInfo.playbackCookie;
 
@@ -700,7 +710,6 @@ onMounted(async () => {
   });
 
   videoElementResizeObserver.observe(videoElement.value);
-
 
   await initializePlayer();
 });

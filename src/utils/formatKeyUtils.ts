@@ -84,3 +84,20 @@ export function createSegmentCacheKeyFromContext(
     context.isInit ? context.format : undefined
   );
 }
+
+export function getUniqueFormatId(format: Misc.Format) {
+  if (format.has_video)
+    return format.itag.toString();
+  
+  const uid_parts = [ format.itag.toString() ];
+
+  if (format.audio_track) {
+    uid_parts.push(format.audio_track.id);
+  }
+
+  if (format.is_drc) {
+    uid_parts.push('drc');
+  }
+
+  return uid_parts.join('-');
+}
