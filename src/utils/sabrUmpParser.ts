@@ -68,8 +68,13 @@ export class SabrUmpParser {
       }
     }
 
-    // Return empty response if we get here with no result (this should not happen).
-    return HttpFetchPlugin.makeResponse({}, new ArrayBuffer(), 500, this.uri, this.response.url, this.requestType);
+    // Throw a recoverable error if we get here with no result (this should not happen).
+    throw new shaka.util.Error(
+      shaka.util.Error.Severity.RECOVERABLE,
+      shaka.util.Error.Category.NETWORK,
+      shaka.util.Error.Code.HTTP_ERROR,
+      'Coundn\'t read any data from the stream',
+    );
   }
 
   private handlePartialData(value: Uint8Array): Uint8Array {
