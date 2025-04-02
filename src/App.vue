@@ -34,7 +34,7 @@ async function initInnertube() {
       cache: new UniversalCache(true),
       fetch: fetchFunction
     });
-
+    
     botguardService.init().then((bgClient) => {
       console.info('[App]', 'BotGuard client initialized');
       Object.assign(window, { botguardService, bgClient });

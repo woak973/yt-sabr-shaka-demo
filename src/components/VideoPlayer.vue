@@ -239,11 +239,7 @@ async function initializePlayer() {
         rebufferingGoal: 0.001,
         bufferBehind: 120,
         retryParameters: {
-          maxAttempts: 30,
-          baseDelay: 1500,
-          backoffFactor: 2.5,
-          fuzzFactor: 0.7,
-          timeout: 40000
+          maxAttempts: 10,
         },
         stallThreshold: 2,
         stallSkip: 0.5,
@@ -261,6 +257,12 @@ async function initializePlayer() {
       }
 
       lastActionMs = Date.now();
+    });
+    
+    player.addEventListener('error', (event) => {
+      const error = (event as CustomEvent).detail as shaka.util.Error;
+      console.error('Player error:', error);
+      showToast(`Error: ${JSON.stringify(error.data)}`, 'error');
     });
 
     await player.attach(videoElement.value);
