@@ -258,7 +258,7 @@ async function initializePlayer() {
 
       lastActionMs = Date.now();
     });
-    
+
     player.addEventListener('error', (event) => {
       const error = (event as CustomEvent).detail as shaka.util.Error;
       console.error('Player error:', error);
@@ -432,41 +432,44 @@ async function setupRequestFilters() {
         if (!videoElement.value)
           throw new Error('No video element found.');
 
-        const activeVariant = player.getVariantTracks().find((track) => {
-          const originalId = currentFormat.has_video ? track.originalVideoId : track.originalAudioId;
-          return getUniqueFormatId(currentFormat) === originalId;
-        });
+        const activeVariant = player.getVariantTracks().find((track) =>
+          getUniqueFormatId(currentFormat) === (currentFormat.has_video ? track.originalVideoId : track.originalAudioId)
+        );
 
-        const videoFormat = formatList.find((format) => {
-          return !!(activeVariant && getUniqueFormatId(format) === activeVariant.originalVideoId);
-        });
-
-        const audioFormat = formatList.find((format) => {
-          return !!(activeVariant && getUniqueFormatId(format) === activeVariant.originalAudioId);
-        });
-        
+        let videoFormat: Misc.Format | undefined;
+        let audioFormat: Misc.Format | undefined;
         let videoFormatId: Protos.FormatId | undefined;
         let audioFormatId: Protos.FormatId | undefined;
 
-        if (videoFormat && audioFormat) {
-          videoFormatId = {
-            itag: videoFormat?.itag,
-            lastModified: parseInt(videoFormat?.last_modified_ms),
-            xtags: videoFormat?.xtags
-          };
+        if (activeVariant) {
+          for (const fmt of formatList) {
+            const uniqueFormatId = getUniqueFormatId(fmt);
+            if (uniqueFormatId === activeVariant.originalVideoId) {
+              videoFormat = fmt;
+            } else if (uniqueFormatId === activeVariant.originalAudioId) {
+              audioFormat = fmt;
+            }
+          }
+        }
 
+        if (videoFormat) {
+          videoFormatId = {
+            itag: videoFormat.itag,
+            lastModified: parseInt(videoFormat.last_modified_ms),
+            xtags: videoFormat.xtags
+          };
+        }
+
+        if (audioFormat) {
           audioFormatId = {
-            itag: audioFormat?.itag,
-            lastModified: parseInt(audioFormat?.last_modified_ms),
-            xtags: audioFormat?.xtags
+            itag: audioFormat.itag,
+            lastModified: parseInt(audioFormat.last_modified_ms),
+            xtags: audioFormat.xtags
           };
         }
 
         const isInit = context ? !context.segment : true;
-        const playbackCookie = lastPlaybackCookie ? Protos.PlaybackCookie.encode(lastPlaybackCookie).finish() : undefined;
-
-        const playerStats = player.getStats();
-
+        
         const videoPlaybackAbrRequest: Protos.VideoPlaybackAbrRequest = {
           clientAbrState: {
             playbackRate: player.getPlaybackRate(),
@@ -476,8 +479,7 @@ async function setupRequestFilters() {
             timeSinceLastActionMs: lastActionMs === 0 ? 0 : Date.now() - lastActionMs,
             timeSinceLastManualFormatSelectionMs: lastManualFormatSelectionMs === 0 ? 0 : Date.now() - lastManualFormatSelectionMs,
             clientViewportIsFlexible: false,
-            lastManualDirection: 0,
-            bandwidthEstimate: Math.round(playerStats.estimatedBandwidth),
+            bandwidthEstimate: Math.round(player.getStats().estimatedBandwidth),
             drcEnabled: currentFormat.is_drc,
             enabledTrackTypesBitfield: currentFormat.has_audio ? 1 : 2,
             clientViewportHeight,
@@ -490,7 +492,7 @@ async function setupRequestFilters() {
           videoPlaybackUstreamerConfig: base64ToU8(videoPlaybackUstreamerConfig),
           streamerContext: {
             poToken: base64ToU8(sessionPoToken ?? coldStartToken ?? ''),
-            playbackCookie: playbackCookie,
+            playbackCookie: lastPlaybackCookie ? Protos.PlaybackCookie.encode(lastPlaybackCookie).finish() : undefined,
             clientInfo: {
               clientName: parseInt(Constants.CLIENT_NAME_IDS.WEB),
               clientVersion: innertube.session.context.client.clientVersion,
@@ -503,17 +505,14 @@ async function setupRequestFilters() {
           field1000: []
         };
 
-        const currentFormatWidth = currentFormat.width;
-        const currentFormatHeight = currentFormat.height;
-
         // Normalize the resolution.
-        if (currentFormatWidth && currentFormatHeight) {
+        if (currentFormat.width && currentFormat.height) {
           let resolution = currentFormat.height;
 
-          const aspectRatio = currentFormatWidth / currentFormatWidth;
+          const aspectRatio = currentFormat.height / currentFormat.width;
 
           if (aspectRatio > (16 / 9)) {
-            resolution = Math.round(currentFormatWidth * 9 / 16);
+            resolution = Math.round(currentFormat.width * 9 / 16);
           }
 
           if (resolution && videoPlaybackAbrRequest.clientAbrState) {
