@@ -1,4 +1,4 @@
-import type { Part } from 'googlevideo';
+import { concatenateChunks, Part } from 'googlevideo';
 import { GoogleVideo, PART, Protos } from 'googlevideo';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 
@@ -11,7 +11,7 @@ export interface Segment {
   headerId?: number;
   mediaHeader: Protos.MediaHeader;
   complete?: boolean;
-  data: Uint8Array<ArrayBuffer>;
+  data: Uint8Array<ArrayBufferLike>;
 }
 
 export class SabrUmpParser {
@@ -36,26 +36,35 @@ export class SabrUmpParser {
       const { value, done } = await reader.read();
 
       if (done) {
-        return this.handleEmptyResponse();
+        // If we got here, we read the whole stream but there was no data; it means we must follow this redirect.
+        if (this.decodedStreamingContext.isSABR && this.decodedStreamingContext.streamInfo?.redirect) {
+          return this.createShakaResponse();
+        }
+
+        // We should never reach here, but if we do, it means we got nothing at all.
+        throw this.createRecoverableError('Empty response with no redirect information', this.decodedStreamingContext);
       }
 
-      const result = await this.processUmpData(this.combineWithPartialData(value));
+      let chunk;
 
+      if (this.partialPart) {
+        chunk = this.partialPart.data;
+        chunk.append(value);
+      } else {
+        chunk = new GoogleVideo.ChunkedDataBuffer([ value ]);
+      }
+
+      const result = await this.process(chunk);
       if (result) {
         if (this.shouldThrowServerError(result)) {
-          throw this.createServerError();
+          throw this.createRecoverableError('Server streaming error', this.decodedStreamingContext);
         }
         return result;
       }
     }
-
-    // Throw a recoverable error if we get here with no result
-    throw new shaka.util.Error(
-      shaka.util.Error.Severity.RECOVERABLE,
-      shaka.util.Error.Category.NETWORK,
-      shaka.util.Error.Code.HTTP_ERROR,
-      'Couldn\'t read any data from the stream'
-    );
+    
+    // Never happens. Here just in case.
+    throw this.createRecoverableError('Couldn\'t read any data from the stream', this.decodedStreamingContext);
   }
 
   private shouldThrowServerError(result: shaka.extern.Response): boolean {
@@ -65,58 +74,19 @@ export class SabrUmpParser {
     );
   }
 
-  private createServerError(): shaka.util.Error {
+  private createRecoverableError(message: string, info?: Record<string, any>) {
     return new shaka.util.Error(
       shaka.util.Error.Severity.RECOVERABLE,
       shaka.util.Error.Category.NETWORK,
       shaka.util.Error.Code.HTTP_ERROR,
-      'Server streaming error',
-      { info: this.decodedStreamingContext }
+      message,
+      { info }
     );
   }
 
-  private handleEmptyResponse(): shaka.extern.Response {
-    // If we got here, we read the whole stream but there was no data; it means we must follow this redirect.
-    if (this.decodedStreamingContext.isSABR && this.decodedStreamingContext.streamInfo?.redirect) {
-      const headers = HttpFetchPlugin.headersToGenericObject_(this.response.headers);
-      headers['X-Streaming-Context'] = btoa(JSON.stringify(this.decodedStreamingContext));
-      return HttpFetchPlugin.makeResponse(
-        headers,
-        new ArrayBuffer(),
-        this.response.status,
-        this.uri,
-        this.response.url,
-        this.requestType
-      );
-    }
-
-    throw new shaka.util.Error(
-      shaka.util.Error.Severity.RECOVERABLE,
-      shaka.util.Error.Category.NETWORK,
-      shaka.util.Error.Code.HTTP_ERROR,
-      'Empty response with no redirect information'
-    );
-  }
-
-  private combineWithPartialData(value: Uint8Array): Uint8Array {
-    if (this.partialPart && this.partialPart.data.getLength()) {
-      const newValue = new Uint8Array(this.partialPart.data.getLength() + value.byteLength);
-
-      for (const chunk of this.partialPart.data.chunks) {
-        newValue.set(chunk);
-      }
-
-      newValue.set(value, this.partialPart.data.getLength());
-
-      return newValue;
-    }
-
-    return value;
-  }
-
-  private processUmpData(value: Uint8Array): Promise<shaka.extern.Response | undefined> {
+  private process(value: GoogleVideo.ChunkedDataBuffer): Promise<shaka.extern.Response | undefined> {
     return new Promise((resolve) => {
-      const ump = new GoogleVideo.UMP(new GoogleVideo.ChunkedDataBuffer([ value ]));
+      const ump = new GoogleVideo.UMP(value);
 
       this.partialPart = ump.parse((part: Part) => {
         const result = this.handlePart(part);
@@ -189,10 +159,7 @@ export class SabrUmpParser {
     const buffer = part.data.split(1).remainingBuffer;
 
     if (this.targetSegment && headerId === this.targetHeaderId) {
-      const newData = new Uint8Array(this.targetSegment.data.byteLength + buffer.getLength());
-      newData.set(this.targetSegment.data);
-      newData.set(buffer.chunks[0], this.targetSegment.data.byteLength);
-      this.targetSegment.data = newData;
+      this.targetSegment.data = concatenateChunks([ this.targetSegment.data, ...buffer.chunks ]);
     }
   }
 
@@ -200,8 +167,6 @@ export class SabrUmpParser {
     const headerId = part.data.getUint8(0);
 
     if (this.targetSegment && headerId === this.targetHeaderId) {
-      const headers = HttpFetchPlugin.headersToGenericObject_(this.response.headers);
-
       if (this.decodedStreamingContext) {
         this.decodedStreamingContext.streamInfo = {
           ...this.decodedStreamingContext.streamInfo,
@@ -209,8 +174,6 @@ export class SabrUmpParser {
           formatInitMetadata: this.formatInitMetadata,
           mediaHeader: this.targetSegment.mediaHeader.isInitSeg ? undefined : this.targetSegment.mediaHeader
         };
-
-        headers['X-Streaming-Context'] = btoa(JSON.stringify(this.decodedStreamingContext));
       }
 
       let arrayBuffer: Uint8Array;
@@ -226,31 +189,58 @@ export class SabrUmpParser {
 
       // We got what we wanted; close the stream and abort the request.
       this.abortController.abort();
-
-      return HttpFetchPlugin.makeResponse(
-        headers,
-        arrayBuffer,
-        this.response.status,
-        this.uri,
-        this.response.url,
-        this.requestType
-      );
+      return this.createShakaResponse(arrayBuffer);
     }
   }
 
   private handleSabrError(part: Part) {
     const sabrError = Protos.SabrError.decode(part.data.chunks[0]);
-    const headers = HttpFetchPlugin.headersToGenericObject_(this.response.headers);
 
     if (this.decodedStreamingContext) {
       this.decodedStreamingContext.error = { sabrError };
-      headers['X-Streaming-Context'] = btoa(JSON.stringify(this.decodedStreamingContext));
     }
 
     this.abortController.abort();
+    return this.createShakaResponse();
+  }
+
+  private handleStreamProtectionStatus(part: Part) {
+    const streamProtectionStatus = Protos.StreamProtectionStatus.decode(part.data.chunks[0]);
+
+    if (this.decodedStreamingContext) {
+      this.decodedStreamingContext.streamInfo = {
+        ...this.decodedStreamingContext.streamInfo,
+        streamProtectionStatus
+      };
+    }
+
+    if (streamProtectionStatus.status === 3) {
+      this.abortController.abort();
+      return this.createShakaResponse();
+    }
+  }
+
+  private handleSabrRedirect(part: Part) {
+    const redirect = Protos.SabrRedirect.decode(part.data.chunks[0]);
+
+    if (this.decodedStreamingContext) {
+      this.decodedStreamingContext.streamInfo = {
+        ...this.decodedStreamingContext.streamInfo,
+        redirect
+      };
+    }
+
+    // With pure UMP, redirects should be followed immediately.
+    if (this.decodedStreamingContext.isUMP && !this.decodedStreamingContext.isSABR) {
+      this.abortController.abort();
+      return this.createShakaResponse();
+    }
+  }
+
+  private createShakaResponse(body?: Uint8Array): shaka.extern.Response {
     return HttpFetchPlugin.makeResponse(
-      headers,
-      new ArrayBuffer(),
+      this.createContextHeaders(),
+      body || new ArrayBuffer(0),
       this.response.status,
       this.uri,
       this.response.url,
@@ -258,54 +248,11 @@ export class SabrUmpParser {
     );
   }
 
-  private handleStreamProtectionStatus(part: Part) {
-    const streamProtectionStatus = Protos.StreamProtectionStatus.decode(part.data.chunks[0]);
+  private createContextHeaders(): Record<string, any> {
     const headers = HttpFetchPlugin.headersToGenericObject_(this.response.headers);
-
     if (this.decodedStreamingContext) {
-      this.decodedStreamingContext.streamInfo = {
-        ...this.decodedStreamingContext.streamInfo,
-        streamProtectionStatus
-      };
       headers['X-Streaming-Context'] = btoa(JSON.stringify(this.decodedStreamingContext));
     }
-
-    if (streamProtectionStatus.status === 3) {
-      this.abortController.abort();
-      return HttpFetchPlugin.makeResponse(
-        headers,
-        new ArrayBuffer(),
-        this.response.status,
-        this.uri,
-        this.response.url,
-        this.requestType
-      );
-    }
-  }
-
-  private handleSabrRedirect(part: Part) {
-    const redirect = Protos.SabrRedirect.decode(part.data.chunks[0]);
-    const headers = HttpFetchPlugin.headersToGenericObject_(this.response.headers);
-
-    if (this.decodedStreamingContext) {
-      this.decodedStreamingContext.streamInfo = {
-        ...this.decodedStreamingContext.streamInfo,
-        redirect
-      };
-      headers['X-Streaming-Context'] = btoa(JSON.stringify(this.decodedStreamingContext));
-    }
-
-    // With pure UMP, redirects should be followed immediately.
-    if (this.decodedStreamingContext.isUMP && !this.decodedStreamingContext.isSABR) {
-      this.abortController.abort();
-      return HttpFetchPlugin.makeResponse(
-        headers,
-        new ArrayBuffer(),
-        this.response.status,
-        this.uri,
-        this.response.url,
-        this.requestType
-      );
-    }
+    return headers;
   }
 }

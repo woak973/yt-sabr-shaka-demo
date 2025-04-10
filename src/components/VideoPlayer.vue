@@ -236,8 +236,8 @@ async function initializePlayer() {
       },
       streaming: {
         bufferingGoal: 120,
-        rebufferingGoal: 0.001,
-        bufferBehind: 120,
+        rebufferingGoal: 0.01,
+        bufferBehind: 300,
         retryParameters: {
           maxAttempts: 10,
         },
