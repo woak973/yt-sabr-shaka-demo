@@ -16,9 +16,9 @@ export function cacheSegment(segment: Segment, format: Misc.Format) {
   const segmentKey = createSegmentCacheKey(segment.mediaHeader, isInit, format);
 
   if (isInit) {
-    HttpFetchPlugin.cacheManager.setInitSegment(segmentKey, segment.data);
+    HttpFetchPlugin.cacheManager.setInitSegment(segmentKey, segment.data as Uint8Array<ArrayBuffer>);
   } else {
-    HttpFetchPlugin.cacheManager.setSegment(segmentKey, segment.data);
+    HttpFetchPlugin.cacheManager.setSegment(segmentKey, segment.data as Uint8Array<ArrayBuffer>);
   }
 }
 
