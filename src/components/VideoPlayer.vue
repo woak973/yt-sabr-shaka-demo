@@ -239,11 +239,11 @@ async function initializePlayer() {
         rebufferingGoal: 0.01,
         bufferBehind: 300,
         retryParameters: {
-          maxAttempts: 10,
+          maxAttempts: 10
         },
         stallThreshold: 2,
-        stallSkip: 0.5,
-      },
+        stallSkip: 0.5
+      }
     });
 
     await setupRequestFilters();
@@ -363,6 +363,7 @@ async function initializePlayer() {
       videoElement.value.currentTime = currentTime;
     }
   } catch (error) {
+    console.error(error);
     showToast(`Error loading video: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
@@ -402,15 +403,17 @@ async function setupRequestFilters() {
       return;
 
     const originalUrl = new URL(request.uris[0]);
-    const url = originalUrl.hostname === 'sabr' ? serverAbrStreamingUrl : originalUrl;
+    let url = originalUrl.hostname === 'sabr' ? serverAbrStreamingUrl : originalUrl;
     const headers = request.headers;
 
     // Modify the request to use our proxy for Google Video requests.
     if ((url.host.endsWith('.googlevideo.com') || url.href.includes('drm'))) {
-      url.searchParams.set('__host', url.host);
-      url.host = 'localhost';
-      url.port = '8080';
-      url.protocol = 'http';
+      const newUrl = new URL(url.toString());
+      newUrl.searchParams.set('__host', url.host);
+      newUrl.host = 'localhost';
+      newUrl.port = '8080';
+      newUrl.protocol = 'http';
+      url = newUrl;
     }
 
     if (type === shaka.net.NetworkingEngine.RequestType.SEGMENT && url.pathname.includes('videoplayback')) {
@@ -469,7 +472,7 @@ async function setupRequestFilters() {
         }
 
         const isInit = context ? !context.segment : true;
-        
+
         const videoPlaybackAbrRequest: Protos.VideoPlaybackAbrRequest = {
           clientAbrState: {
             playbackRate: player.getPlaybackRate(),
@@ -621,7 +624,12 @@ async function setupRequestFilters() {
       const sabrStreamingContext = response.headers['X-Streaming-Context'];
 
       if (sabrStreamingContext) {
-        const { streamInfo, isSABR, format } = JSON.parse(atob(sabrStreamingContext)) as SabrStreamingContext;
+        const {
+          streamInfo,
+          isSABR,
+          format,
+          byteRange
+        } = JSON.parse(atob(sabrStreamingContext)) as SabrStreamingContext;
 
         if (streamInfo) {
           const sabrRedirect = streamInfo.redirect;
@@ -637,14 +645,25 @@ async function setupRequestFilters() {
             // For SABR, create a fake URL so we can identify it in the request filter.
             if (isSABR) {
               serverAbrStreamingUrl = redirectUrl;
-              redirectUrl = new URL('https://sabr');
-              redirectUrl.searchParams.set('___key', fromFormat(format) || '');
+              redirectUrl = new URL(`https://sabr?___key=${fromFormat(format) || ''}`);
             }
 
-            const redirectRequest = shaka.net.NetworkingEngine.makeRequest([ redirectUrl.toString() ], player!.getConfiguration().streaming.retryParameters);
-            const requestOperation = networkingEngine.request(type, redirectRequest, context);
-            const redirectResponse = await requestOperation.promise;
+            const retryParameters = player!.getConfiguration().streaming.retryParameters;
 
+            const redirectRequest =
+              shaka.net.NetworkingEngine.makeRequest([ redirectUrl.toString() ], retryParameters);
+
+            // Keep range so we can slice the response (only if it's the init segment).
+            if (isSABR && byteRange) {
+              redirectRequest.headers['Range'] = `bytes=${byteRange.start}-${byteRange.end}`;
+            }
+
+            const requestOperation =
+              player!.getNetworkingEngine()?.request(type, redirectRequest, context);
+            const redirectResponse = await requestOperation!.promise;
+
+            // Modify the original response to contain the results of the redirect
+            // response.
             Object.assign(response, redirectResponse);
             return;
           }
