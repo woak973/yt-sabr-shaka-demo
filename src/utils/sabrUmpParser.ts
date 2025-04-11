@@ -1,11 +1,10 @@
-import { concatenateChunks, Part } from 'googlevideo';
-import { GoogleVideo, PART, Protos } from 'googlevideo';
+import { GoogleVideo, Protos, concatenateChunks, Part, PART } from 'googlevideo';
 import shaka from 'shaka-player/dist/shaka-player.ui';
 
 import { cacheSegment } from './cacheHelper';
-import type { SabrStreamingContext } from './shakaHttpPlugin';
-import { HttpFetchPlugin } from './shakaHttpPlugin';
 import { fromFormat, fromMediaHeader } from './formatKeyUtils';
+import { HttpFetchPlugin } from './shakaHttpPlugin';
+import type { SabrStreamingContext } from './shakaHttpPlugin';
 
 export interface Segment {
   headerId?: number;
